@@ -1,22 +1,42 @@
-const isLoggedIn = (req, res, next) => {
-  if (!req.session.user) {
+const jwt = require('jsonwebtoken');
+
+const JWT_SECRET = process.env.SESSION_SECRET || 'fallback_secret';
+
+const verifyToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; // "Bearer <token>"
+
+  if (!token) {
     return res.status(401).json({ message: 'Please login first' });
   }
-  next();
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({ message: 'Invalid or expired token, please login again' });
+  }
 };
 
+const isLoggedIn = verifyToken;
+
 const isAdmin = (req, res, next) => {
-  if (!req.session.user || req.session.user.role !== 'admin') {
-    return res.status(403).json({ message: 'Admin access only' });
-  }
-  next();
+  verifyToken(req, res, () => {
+    if (!req.user || req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Admin access only' });
+    }
+    next();
+  });
 };
 
 const isInstructor = (req, res, next) => {
-  if (!req.session.user || req.session.user.role !== 'instructor') {
-    return res.status(403).json({ message: 'Instructor access only' });
-  }
-  next();
+  verifyToken(req, res, () => {
+    if (!req.user || req.user.role !== 'instructor') {
+      return res.status(403).json({ message: 'Instructor access only' });
+    }
+    next();
+  });
 };
 
 module.exports = { isLoggedIn, isAdmin, isInstructor };

@@ -43,14 +43,25 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setLoading(false);
+      return;
+    }
     getMe()
       .then(res => setRole(res.data.role))
-      .catch(() => setRole(null))
+      .catch(() => {
+        localStorage.removeItem('token'); // Clear invalid/expired token
+        setRole(null);
+      })
       .finally(() => setLoading(false));
   }, []);
 
   const handleLogin = (userRole) => setRole(userRole);
-  const handleLogout = () => setRole(null);
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    setRole(null);
+  };
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">

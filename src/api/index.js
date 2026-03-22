@@ -2,12 +2,32 @@ import axios from 'axios';
 
 const API = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000/api',
-  withCredentials: true
+  withCredentials: false  // No cookies needed anymore — we use JWT in headers
+});
+
+// Attach JWT token to every request automatically
+API.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers['Authorization'] = `Bearer ${token}`;
+  }
+  return config;
 });
 
 // Auth
-export const login = (data) => API.post('/auth/login', data);
-export const logout = () => API.post('/auth/logout');
+export const login = async (data) => {
+  const res = await API.post('/auth/login', data);
+  if (res.data.token) {
+    localStorage.setItem('token', res.data.token);
+  }
+  return res;
+};
+
+export const logout = () => {
+  localStorage.removeItem('token');
+  return API.post('/auth/logout');
+};
+
 export const getMe = () => API.get('/auth/me');
 
 // Admin — Departments

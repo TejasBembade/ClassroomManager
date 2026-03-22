@@ -7,7 +7,7 @@ const TimeSlot = require('../models/TimeSlot');
 const addSubject = async (req, res) => {
   try {
     const { name } = req.body;
-    const departmentId = req.session.user.departmentId;
+    const departmentId = req.user.departmentId;
     const existing = await Subject.findOne({ name, departmentId });
     if (existing) return res.status(400).json({ message: 'Subject already exists' });
     const subject = await Subject.create({ name, departmentId });
@@ -17,7 +17,7 @@ const addSubject = async (req, res) => {
 
 const getSubjects = async (req, res) => {
   try {
-    const departmentId = req.session.user.departmentId;
+    const departmentId = req.user.departmentId;
     const subjects = await Subject.find({ departmentId });
     res.json(subjects);
   } catch (err) { res.status(500).json({ message: err.message }); }
@@ -27,7 +27,7 @@ const getSubjects = async (req, res) => {
 const deleteSubject = async (req, res) => {
   try {
     const { id } = req.params;
-    const departmentId = req.session.user.departmentId;
+    const departmentId = req.user.departmentId;
     const subject = await Subject.findById(id);
     if (!subject) return res.status(404).json({ message: 'Subject not found' });
     if (subject.departmentId.toString() !== departmentId.toString()) {
@@ -42,7 +42,7 @@ const deleteSubject = async (req, res) => {
 const getAvailableRooms = async (req, res) => {
   try {
     const { day, timeSlotId } = req.query;
-    const departmentId = req.session.user.departmentId;
+    const departmentId = req.user.departmentId;
     const allocations = await RoomAllocation.find({ departmentId, day, timeSlotId }).populate('roomId');
     const rooms = allocations.map(a => a.roomId);
     res.json(rooms);
@@ -52,7 +52,7 @@ const getAvailableRooms = async (req, res) => {
 const assignClass = async (req, res) => {
   try {
     const { subjectId, roomId, timeSlotId, day, teacherName, forceOverwrite } = req.body;
-    const departmentId = req.session.user.departmentId;
+    const departmentId = req.user.departmentId;
 
     const lock = await Lock.findOne({ departmentId, day });
     if (lock && lock.isLocked) {
@@ -88,7 +88,7 @@ const assignClass = async (req, res) => {
 
 const getTimetable = async (req, res) => {
   try {
-    const departmentId = req.session.user.departmentId;
+    const departmentId = req.user.departmentId;
     const allocations = await RoomAllocation.find({ departmentId })
       .populate('roomId').populate('timeSlotId');
 
@@ -119,12 +119,11 @@ const getTimeSlots = async (req, res) => {
 const deleteAssignment = async (req, res) => {
   try {
     const { id } = req.params;
-    const departmentId = req.session.user.departmentId;
+    const departmentId = req.user.departmentId;
 
     const assignment = await ClassAssignment.findById(id).populate('subjectId');
     if (!assignment) return res.status(404).json({ message: 'Assignment not found' });
 
-    // Check lock
     const lock = await Lock.findOne({ departmentId, day: assignment.day });
     if (lock && lock.isLocked) {
       return res.status(403).json({ message: `Timetable for ${assignment.day} is locked` });
@@ -140,7 +139,7 @@ const updateTeacher = async (req, res) => {
   try {
     const { id } = req.params;
     const { teacherName } = req.body;
-    const departmentId = req.session.user.departmentId;
+    const departmentId = req.user.departmentId;
 
     if (!teacherName || !teacherName.trim()) {
       return res.status(400).json({ message: 'Teacher name is required' });
@@ -149,7 +148,6 @@ const updateTeacher = async (req, res) => {
     const assignment = await ClassAssignment.findById(id).populate('subjectId');
     if (!assignment) return res.status(404).json({ message: 'Assignment not found' });
 
-    // Check lock
     const lock = await Lock.findOne({ departmentId, day: assignment.day });
     if (lock && lock.isLocked) {
       return res.status(403).json({ message: `Timetable for ${assignment.day} is locked` });
