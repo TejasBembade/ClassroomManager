@@ -9,6 +9,7 @@ const app = express();
 
 const allowedOrigins = [
   'http://localhost:5173',
+  'https://classmanager-amber.vercel.app',
   process.env.FRONTEND_URL
 ].filter(Boolean);
 
@@ -31,8 +32,8 @@ app.use(session({
   store: MongoStore.create({ mongoUrl: process.env.MONGO_URI }),
   cookie: {
     maxAge: 1000 * 60 * 60 * 24,
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-    secure: process.env.NODE_ENV === 'production'
+    sameSite: 'none',
+    secure: true
   }
 }));
 
