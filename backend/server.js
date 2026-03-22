@@ -14,6 +14,12 @@ app.use(session({
   saveUninitialized: false
 }));
 
+
+// Routes
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/admin', require('./routes/admin'));
+app.use('/api/instructor', require('./routes/instructor'));
+
 // Test route
 app.get('/', (req, res) => {
   res.json({ message: 'Server is running!' });
