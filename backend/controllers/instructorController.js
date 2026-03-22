@@ -107,4 +107,14 @@ const getTimetable = async (req, res) => {
   }
 };
 
-module.exports = { addSubject, getSubjects, getAvailableRooms, assignClass, getTimetable };
+const getTimeSlots = async (req, res) => {
+  try {
+    const TimeSlot = require('../models/TimeSlot');
+    const timeSlots = await TimeSlot.find();
+    res.json(timeSlots);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+module.exports = { addSubject, getSubjects, getAvailableRooms, assignClass, getTimetable, getTimeSlots };

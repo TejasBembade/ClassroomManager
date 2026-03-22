@@ -6,11 +6,13 @@ const {
   getSubjects,
   getAvailableRooms,
   assignClass,
-  getTimetable
+  getTimetable,
+  getTimeSlots
 } = require('../controllers/instructorController');
 
 router.post('/subjects', isInstructor, addSubject);
 router.get('/subjects', isInstructor, getSubjects);
+router.get('/timeslots', isInstructor, getTimeSlots);
 router.get('/available-rooms', isInstructor, getAvailableRooms);
 router.post('/assign', isInstructor, assignClass);
 router.get('/timetable', isInstructor, getTimetable);

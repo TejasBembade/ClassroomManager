@@ -1,0 +1,268 @@
+import { useState, useEffect } from 'react';
+import {
+  addSubject, getSubjects,
+  getAvailableRooms, assignClass,
+  getTimetable, getTimeSlotsPublic
+} from '../api/index';
+import { logout } from '../api/index';
+
+const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+
+export default function InstructorDashboard({ onLogout }) {
+  const [tab, setTab] = useState('assign');
+  const [subjects, setSubjects] = useState([]);
+  const [timeSlots, setTimeSlots] = useState([]);
+  const [availableRooms, setAvailableRooms] = useState([]);
+  const [timetable, setTimetable] = useState({ allocations: [], assignments: [] });
+  const [msg, setMsg] = useState('');
+  const [msgType, setMsgType] = useState('success');
+
+  // Conflict modal
+  const [conflict, setConflict] = useState(null);
+  const [pendingAssign, setPendingAssign] = useState(null);
+
+  // Forms
+  const [subjectName, setSubjectName] = useState('');
+  const [assignForm, setAssignForm] = useState({
+    subjectId: '', roomId: '', timeSlotId: '', day: 'Monday', teacherName: ''
+  });
+
+  useEffect(() => { fetchAll(); }, []);
+
+  const fetchAll = async () => {
+  try {
+    const [s, t, tt] = await Promise.all([
+      getSubjects(), getTimeSlotsPublic(), getTimetable()
+    ]);
+    setSubjects(s.data);
+    setTimeSlots(t.data);
+    setTimetable(tt.data);
+  } catch (err) {
+    console.log('fetchAll error:', err);
+  }
+};
+
+  const showMsg = (m, type = 'success') => {
+    setMsg(m); setMsgType(type);
+    setTimeout(() => setMsg(''), 4000);
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    onLogout();
+  };
+
+  const handleAddSubject = async (e) => {
+    e.preventDefault();
+    try {
+      await addSubject({ name: subjectName });
+      setSubjectName('');
+      fetchAll();
+      showMsg('Subject added!');
+    } catch (err) { showMsg(err.response?.data?.message || 'Error', 'error'); }
+  };
+
+  // When day or timeslot changes, fetch available rooms
+  const handleDayOrSlotChange = async (newForm) => {
+    setAssignForm(newForm);
+    if (newForm.day && newForm.timeSlotId) {
+      try {
+        const res = await getAvailableRooms(newForm.day, newForm.timeSlotId);
+        setAvailableRooms(res.data);
+      } catch { setAvailableRooms([]); }
+    }
+  };
+
+  const handleAssign = async (e, forceOverwrite = false) => {
+    if (e) e.preventDefault();
+    try {
+      await assignClass({ ...assignForm, forceOverwrite });
+      setConflict(null);
+      setPendingAssign(null);
+      fetchAll();
+      showMsg('Class assigned successfully!');
+    } catch (err) {
+      const data = err.response?.data;
+      if (err.response?.status === 409) {
+        setConflict(data);
+        setPendingAssign(assignForm);
+      } else {
+        showMsg(data?.message || 'Error', 'error');
+      }
+    }
+  };
+
+  const handleOverwrite = async () => {
+    try {
+      await assignClass({ ...pendingAssign, forceOverwrite: true });
+      setConflict(null);
+      setPendingAssign(null);
+      fetchAll();
+      showMsg('Class overwritten successfully!');
+    } catch (err) {
+      showMsg(err.response?.data?.message || 'Error', 'error');
+    }
+  };
+
+  // Build timetable grid
+  const { allocations, assignments } = timetable;
+
+  const getAssignment = (roomId, timeSlotId, day) => {
+    return assignments.find(a =>
+      a.roomId?._id === roomId &&
+      a.timeSlotId?._id === timeSlotId &&
+      a.day === day
+    );
+  };
+
+  const tabs = [
+    { key: 'assign', label: 'Assign Class' },
+    { key: 'subjects', label: 'Subjects' },
+    { key: 'timetable', label: 'My Timetable' },
+  ];
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-green-700 text-white px-6 py-4 flex justify-between items-center">
+        <h1 className="text-xl font-bold">Instructor Dashboard</h1>
+        <button onClick={handleLogout} className="text-sm bg-white text-green-700 px-4 py-1.5 rounded-lg font-medium">Logout</button>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2 px-6 pt-4">
+        {tabs.map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium ${tab === t.key ? 'bg-green-600 text-white' : 'bg-white text-gray-600 border'}`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Message */}
+      {msg && (
+        <div className={`mx-6 mt-4 px-4 py-2 rounded-lg text-sm ${msgType === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+          {msg}
+        </div>
+      )}
+
+      <div className="p-6">
+
+        {/* ASSIGN TAB */}
+        {tab === 'assign' && (
+          <div className="max-w-lg">
+            <div className="bg-white p-5 rounded-xl shadow-sm">
+              <h2 className="font-semibold text-gray-700 mb-4">Assign Class</h2>
+              <form onSubmit={handleAssign} className="flex flex-col gap-3">
+                <select className="border rounded-lg px-3 py-2 text-sm" value={assignForm.subjectId} onChange={e => setAssignForm({...assignForm, subjectId: e.target.value})} required>
+                  <option value="">Select Subject</option>
+                  {subjects.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
+                </select>
+                <input className="border rounded-lg px-3 py-2 text-sm" placeholder="Teacher name" value={assignForm.teacherName} onChange={e => setAssignForm({...assignForm, teacherName: e.target.value})} required />
+                <select className="border rounded-lg px-3 py-2 text-sm" value={assignForm.day}
+                  onChange={e => handleDayOrSlotChange({...assignForm, day: e.target.value})}>
+                  {DAYS.map(d => <option key={d}>{d}</option>)}
+                </select>
+                <select className="border rounded-lg px-3 py-2 text-sm" value={assignForm.timeSlotId}
+                  onChange={e => handleDayOrSlotChange({...assignForm, timeSlotId: e.target.value})} required>
+                  <option value="">Select Time Slot</option>
+                  {timeSlots.map(t => <option key={t._id} value={t._id}>{t.startTime} - {t.endTime}</option>)}
+                </select>
+                <select className="border rounded-lg px-3 py-2 text-sm" value={assignForm.roomId} onChange={e => setAssignForm({...assignForm, roomId: e.target.value})} required>
+                  <option value="">Select Room</option>
+                  {availableRooms.map(r => <option key={r._id} value={r._id}>{r.roomNumber}</option>)}
+                </select>
+                {availableRooms.length === 0 && assignForm.timeSlotId && (
+                  <p className="text-xs text-red-500">No rooms available for selected day and time slot.</p>
+                )}
+                <button className="bg-green-600 text-white py-2 rounded-lg text-sm font-medium">Assign</button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* SUBJECTS TAB */}
+        {tab === 'subjects' && (
+          <div className="max-w-md">
+            <div className="bg-white p-5 rounded-xl shadow-sm">
+              <h2 className="font-semibold text-gray-700 mb-4">Add Subject</h2>
+              <form onSubmit={handleAddSubject} className="flex flex-col gap-3">
+                <input className="border rounded-lg px-3 py-2 text-sm" placeholder="Subject name" value={subjectName} onChange={e => setSubjectName(e.target.value)} required />
+                <button className="bg-green-600 text-white py-2 rounded-lg text-sm">Add</button>
+              </form>
+              <ul className="mt-4 text-sm text-gray-600 space-y-1">
+                {subjects.map(s => <li key={s._id} className="bg-gray-50 px-3 py-1 rounded">• {s.name}</li>)}
+              </ul>
+            </div>
+          </div>
+        )}
+
+        {/* TIMETABLE TAB */}
+        {tab === 'timetable' && (
+          <div className="bg-white p-5 rounded-xl shadow-sm overflow-auto">
+            <h2 className="font-semibold text-gray-700 mb-4">My Department Timetable</h2>
+            {DAYS.map(day => {
+              const dayAllocations = allocations.filter(a => a.day === day);
+              if (dayAllocations.length === 0) return null;
+              return (
+                <div key={day} className="mb-6">
+                  <h3 className="font-medium text-indigo-600 mb-2">{day}</h3>
+                  <table className="w-full text-sm border">
+                    <thead>
+                      <tr className="bg-gray-50">
+                        <th className="p-2 text-left border">Room</th>
+                        {timeSlots.map(t => (
+                          <th key={t._id} className="p-2 text-left border">{t.startTime} - {t.endTime}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...new Set(dayAllocations.map(a => a.roomId?._id))].map(roomId => {
+                        const room = dayAllocations.find(a => a.roomId?._id === roomId)?.roomId;
+                        return (
+                          <tr key={roomId} className="border-t">
+                            <td className="p-2 border font-medium">{room?.roomNumber}</td>
+                            {timeSlots.map(t => {
+                              const a = getAssignment(roomId, t._id, day);
+                              return (
+                                <td key={t._id} className="p-2 border">
+                                  {a ? (
+                                    <div className="bg-green-50 rounded p-1">
+                                      <div className="font-medium text-green-800">{a.subjectId?.name}</div>
+                                      <div className="text-xs text-gray-500">{a.teacherName}</div>
+                                    </div>
+                                  ) : (
+                                    <span className="text-gray-300">--</span>
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Conflict Modal */}
+      {conflict && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-96 shadow-xl">
+            <h3 className="font-bold text-lg mb-2 text-red-600">Conflict Detected</h3>
+            <p className="text-sm text-gray-600 mb-4">{conflict.message}</p>
+            <p className="text-sm text-gray-500 mb-6">Do you want to overwrite the existing assignment?</p>
+            <div className="flex gap-3">
+              <button onClick={handleOverwrite} className="flex-1 bg-red-600 text-white py-2 rounded-lg text-sm font-medium">Yes, Overwrite</button>
+              <button onClick={() => setConflict(null)} className="flex-1 border py-2 rounded-lg text-sm">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
