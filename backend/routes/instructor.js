@@ -4,7 +4,8 @@ const { isInstructor } = require('../middleware/auth');
 const {
   addSubject, getSubjects, deleteSubject,
   getAvailableRooms, assignClass,
-  getTimetable, getTimeSlots, deleteAssignment
+  getTimetable, getTimeSlots,
+  deleteAssignment, updateTeacher,
 } = require('../controllers/instructorController');
 
 router.post('/subjects', isInstructor, addSubject);
@@ -15,5 +16,6 @@ router.get('/available-rooms', isInstructor, getAvailableRooms);
 router.post('/assign', isInstructor, assignClass);
 router.get('/timetable', isInstructor, getTimetable);
 router.delete('/assignments/:id', isInstructor, deleteAssignment);
+router.patch('/assignments/:id/teacher', isInstructor, updateTeacher);
 
 module.exports = router;

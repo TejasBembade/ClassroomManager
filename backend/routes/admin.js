@@ -6,9 +6,10 @@ const {
   addRoom, deleteRoom,
   addTimeSlot, deleteTimeSlot,
   allocateRoom, deleteRoomAllocation,
-  createInstructor,
+  createInstructor, getInstructors, deleteInstructor,
   getDepartments, getRooms, getTimeSlots,
-  lockDay, getFullTimetable, getRoomAllocationTimetable
+  lockDay, getFullTimetable, getRoomAllocationTimetable,
+  deleteAssignment,
 } = require('../controllers/adminController');
 
 router.post('/departments', isAdmin, addDepartment);
@@ -28,7 +29,11 @@ router.get('/room-allocation-timetable', isAdmin, getRoomAllocationTimetable);
 router.delete('/room-allocation/:id', isAdmin, deleteRoomAllocation);
 
 router.post('/create-instructor', isAdmin, createInstructor);
+router.get('/instructors', isAdmin, getInstructors);
+router.delete('/instructors/:id', isAdmin, deleteInstructor);
+
 router.post('/lock-day', isAdmin, lockDay);
 router.get('/full-timetable', isAdmin, getFullTimetable);
+router.delete('/assignments/:id', isAdmin, deleteAssignment);
 
 module.exports = router;
