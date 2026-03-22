@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
-  addSubject, getSubjects,
-  getAvailableRooms, assignClass,
+  addSubject, getSubjects, deleteSubject,
+  getAvailableRooms, assignClass, deleteAssignment,
   getTimetable, getTimeSlotsPublic
 } from '../api/index';
 import { logout } from '../api/index';
@@ -16,12 +16,8 @@ export default function InstructorDashboard({ onLogout }) {
   const [timetable, setTimetable] = useState({ allocations: [], assignments: [] });
   const [msg, setMsg] = useState('');
   const [msgType, setMsgType] = useState('success');
-
-  // Conflict modal
   const [conflict, setConflict] = useState(null);
   const [pendingAssign, setPendingAssign] = useState(null);
-
-  // Forms
   const [subjectName, setSubjectName] = useState('');
   const [assignForm, setAssignForm] = useState({
     subjectId: '', roomId: '', timeSlotId: '', day: 'Monday', teacherName: ''
@@ -30,27 +26,24 @@ export default function InstructorDashboard({ onLogout }) {
   useEffect(() => { fetchAll(); }, []);
 
   const fetchAll = async () => {
-  try {
-    const [s, t, tt] = await Promise.all([
-      getSubjects(), getTimeSlotsPublic(), getTimetable()
-    ]);
-    setSubjects(s.data);
-    setTimeSlots(t.data);
-    setTimetable(tt.data);
-  } catch (err) {
-    console.log('fetchAll error:', err);
-  }
-};
+    try {
+      const [s, t, tt] = await Promise.all([
+        getSubjects(), getTimeSlotsPublic(), getTimetable()
+      ]);
+      setSubjects(s.data);
+      setTimeSlots(t.data);
+      setTimetable(tt.data);
+    } catch (err) {
+      console.log('fetchAll error:', err);
+    }
+  };
 
   const showMsg = (m, type = 'success') => {
     setMsg(m); setMsgType(type);
     setTimeout(() => setMsg(''), 4000);
   };
 
-  const handleLogout = async () => {
-    await logout();
-    onLogout();
-  };
+  const handleLogout = async () => { await logout(); onLogout(); };
 
   const handleAddSubject = async (e) => {
     e.preventDefault();
@@ -62,7 +55,24 @@ export default function InstructorDashboard({ onLogout }) {
     } catch (err) { showMsg(err.response?.data?.message || 'Error', 'error'); }
   };
 
-  // When day or timeslot changes, fetch available rooms
+  const handleDeleteSubject = async (id) => {
+    if (!window.confirm('Delete this subject?')) return;
+    try {
+      await deleteSubject(id);
+      fetchAll();
+      showMsg('Subject deleted!');
+    } catch (err) { showMsg(err.response?.data?.message || 'Error', 'error'); }
+  };
+
+  const handleDeleteAssignment = async (id) => {
+    if (!window.confirm('Delete this class assignment?')) return;
+    try {
+      await deleteAssignment(id);
+      fetchAll();
+      showMsg('Assignment deleted!');
+    } catch (err) { showMsg(err.response?.data?.message || 'Error', 'error'); }
+  };
+
   const handleDayOrSlotChange = async (newForm) => {
     setAssignForm(newForm);
     if (newForm.day && newForm.timeSlotId) {
@@ -104,7 +114,6 @@ export default function InstructorDashboard({ onLogout }) {
     }
   };
 
-  // Build timetable grid
   const { allocations, assignments } = timetable;
 
   const getAssignment = (roomId, timeSlotId, day) => {
@@ -118,18 +127,17 @@ export default function InstructorDashboard({ onLogout }) {
   const tabs = [
     { key: 'assign', label: 'Assign Class' },
     { key: 'subjects', label: 'Subjects' },
+    { key: 'rooms', label: 'Available Rooms' },
     { key: 'timetable', label: 'My Timetable' },
   ];
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <div className="bg-green-700 text-white px-6 py-4 flex justify-between items-center">
         <h1 className="text-xl font-bold">Instructor Dashboard</h1>
         <button onClick={handleLogout} className="text-sm bg-white text-green-700 px-4 py-1.5 rounded-lg font-medium">Logout</button>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-2 px-6 pt-4">
         {tabs.map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
@@ -139,7 +147,6 @@ export default function InstructorDashboard({ onLogout }) {
         ))}
       </div>
 
-      {/* Message */}
       {msg && (
         <div className={`mx-6 mt-4 px-4 py-2 rounded-lg text-sm ${msgType === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
           {msg}
@@ -191,9 +198,53 @@ export default function InstructorDashboard({ onLogout }) {
                 <button className="bg-green-600 text-white py-2 rounded-lg text-sm">Add</button>
               </form>
               <ul className="mt-4 text-sm text-gray-600 space-y-1">
-                {subjects.map(s => <li key={s._id} className="bg-gray-50 px-3 py-1 rounded">• {s.name}</li>)}
+                {subjects.map(s => (
+                  <li key={s._id} className="bg-gray-50 px-3 py-1 rounded flex justify-between items-center">
+                    <span>• {s.name}</span>
+                    <button onClick={() => handleDeleteSubject(s._id)} className="text-red-400 hover:text-red-600 text-xs">Delete</button>
+                  </li>
+                ))}
               </ul>
             </div>
+          </div>
+        )}
+
+        {/* AVAILABLE ROOMS TAB */}
+        {tab === 'rooms' && (
+          <div className="bg-white p-5 rounded-xl shadow-sm max-w-2xl">
+            <h2 className="font-semibold text-gray-700 mb-4">Available Rooms by Day & Time</h2>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50">
+                  <th className="p-2 text-left border">Day</th>
+                  <th className="p-2 text-left border">Time Slot</th>
+                  <th className="p-2 text-left border">Available Rooms</th>
+                </tr>
+              </thead>
+              <tbody>
+                {DAYS.map(day =>
+                  timeSlots.map(t => {
+                    const dayRooms = allocations.filter(a =>
+                      a.day === day && a.timeSlotId?._id === t._id
+                    );
+                    if (dayRooms.length === 0) return null;
+                    return (
+                      <tr key={`${day}-${t._id}`} className="border-t">
+                        <td className="p-2 border">{day}</td>
+                        <td className="p-2 border">{t.startTime} - {t.endTime}</td>
+                        <td className="p-2 border">
+                          {dayRooms.map(r => (
+                            <span key={r._id} className="inline-block bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs mr-1">
+                              {r.roomId?.roomNumber}
+                            </span>
+                          ))}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
         )}
 
@@ -230,6 +281,11 @@ export default function InstructorDashboard({ onLogout }) {
                                     <div className="bg-green-50 rounded p-1">
                                       <div className="font-medium text-green-800">{a.subjectId?.name}</div>
                                       <div className="text-xs text-gray-500">{a.teacherName}</div>
+                                      <button
+                                        onClick={() => handleDeleteAssignment(a._id)}
+                                        className="text-red-400 hover:text-red-600 text-xs mt-1">
+                                        Delete
+                                      </button>
                                     </div>
                                   ) : (
                                     <span className="text-gray-300">--</span>

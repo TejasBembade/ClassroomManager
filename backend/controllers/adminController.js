@@ -142,16 +142,61 @@ const getRoomAllocationTimetable = async (req, res) => {
   }
 };
 
+// Delete department
+const deleteDepartment = async (req, res) => {
+  try {
+    await Department.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Department deleted' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// Delete room
+const deleteRoom = async (req, res) => {
+  try {
+    await Room.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Room deleted' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// Delete time slot
+const deleteTimeSlot = async (req, res) => {
+  try {
+    await TimeSlot.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Time slot deleted' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// Delete room allocation
+const deleteRoomAllocation = async (req, res) => {
+  try {
+    await RoomAllocation.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Allocation deleted' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const deleteAssignment = async (req, res) => {
+  try {
+    await ClassAssignment.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Assignment deleted' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 module.exports = {
-  addDepartment,
-  addRoom,
-  addTimeSlot,
-  allocateRoom,
+  addDepartment, deleteDepartment,
+  addRoom, deleteRoom,
+  addTimeSlot, deleteTimeSlot,
+  allocateRoom, deleteRoomAllocation,
   createInstructor,
-  getDepartments,
-  getRooms,
-  getTimeSlots,
-  lockDay,
-  getFullTimetable,
-  getRoomAllocationTimetable
+  getDepartments, getRooms, getTimeSlots,
+  lockDay, getFullTimetable, getRoomAllocationTimetable
 };

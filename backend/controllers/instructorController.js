@@ -2,8 +2,8 @@ const Subject = require('../models/Subject');
 const RoomAllocation = require('../models/RoomAllocation');
 const ClassAssignment = require('../models/ClassAssignment');
 const Lock = require('../models/Lock');
+const TimeSlot = require('../models/TimeSlot');
 
-// Add subject
 const addSubject = async (req, res) => {
   try {
     const { name } = req.body;
@@ -17,7 +17,6 @@ const addSubject = async (req, res) => {
   }
 };
 
-// Get subjects for instructor's department
 const getSubjects = async (req, res) => {
   try {
     const departmentId = req.session.user.departmentId;
@@ -28,7 +27,15 @@ const getSubjects = async (req, res) => {
   }
 };
 
-// Get available rooms for a day and timeslot
+const deleteSubject = async (req, res) => {
+  try {
+    await Subject.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Subject deleted' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 const getAvailableRooms = async (req, res) => {
   try {
     const { day, timeSlotId } = req.query;
@@ -41,27 +48,22 @@ const getAvailableRooms = async (req, res) => {
   }
 };
 
-// Assign class
 const assignClass = async (req, res) => {
   try {
     const { subjectId, roomId, timeSlotId, day, teacherName, forceOverwrite } = req.body;
     const departmentId = req.session.user.departmentId;
 
-    // Check if locked
     const lock = await Lock.findOne({ departmentId, day });
     if (lock && lock.isLocked) {
       return res.status(403).json({ message: 'Timetable is locked for this day' });
     }
 
-    // Check room is allocated to this department
     const allocation = await RoomAllocation.findOne({ roomId, departmentId, timeSlotId, day });
     if (!allocation) {
       return res.status(400).json({ message: 'This room is not allocated to your department for this day and time' });
     }
 
-    // Check room conflict
-    const roomConflict = await ClassAssignment.findOne({ roomId, timeSlotId, day })
-      .populate('subjectId');
+    const roomConflict = await ClassAssignment.findOne({ roomId, timeSlotId, day }).populate('subjectId');
     if (roomConflict && !forceOverwrite) {
       return res.status(409).json({
         message: `Room already assigned to ${roomConflict.subjectId.name} (${roomConflict.teacherName})`,
@@ -69,7 +71,6 @@ const assignClass = async (req, res) => {
       });
     }
 
-    // Check teacher conflict
     const teacherConflict = await ClassAssignment.findOne({ teacherName, timeSlotId, day });
     if (teacherConflict && !forceOverwrite) {
       return res.status(409).json({
@@ -78,29 +79,24 @@ const assignClass = async (req, res) => {
       });
     }
 
-    // Overwrite or create
     await ClassAssignment.findOneAndDelete({ roomId, timeSlotId, day });
     const assignment = await ClassAssignment.create({ subjectId, roomId, timeSlotId, day, teacherName });
     res.json({ message: 'Class assigned successfully', assignment });
-
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
 
-// Get timetable for instructor's department
 const getTimetable = async (req, res) => {
   try {
     const departmentId = req.session.user.departmentId;
     const allocations = await RoomAllocation.find({ departmentId })
       .populate('roomId')
       .populate('timeSlotId');
-
     const assignments = await ClassAssignment.find()
       .populate('subjectId')
       .populate('roomId')
       .populate('timeSlotId');
-
     res.json({ allocations, assignments });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -109,7 +105,6 @@ const getTimetable = async (req, res) => {
 
 const getTimeSlots = async (req, res) => {
   try {
-    const TimeSlot = require('../models/TimeSlot');
     const timeSlots = await TimeSlot.find();
     res.json(timeSlots);
   } catch (err) {
@@ -117,4 +112,17 @@ const getTimeSlots = async (req, res) => {
   }
 };
 
-module.exports = { addSubject, getSubjects, getAvailableRooms, assignClass, getTimetable, getTimeSlots };
+const deleteAssignment = async (req, res) => {
+  try {
+    await ClassAssignment.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Assignment deleted' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+module.exports = {
+  addSubject, getSubjects, deleteSubject,
+  getAvailableRooms, assignClass,
+  getTimetable, getTimeSlots, deleteAssignment
+};
