@@ -7,6 +7,26 @@ const Lock = require('../models/Lock');
 const ClassAssignment = require('../models/ClassAssignment');
 const Subject = require('../models/Subject');
 
+const getValidAssignments = async () => {
+  const assignments = await ClassAssignment.find()
+    .populate({
+      path: 'subjectId',
+      populate: { path: 'departmentId' }
+    })
+    .populate('roomId')
+    .populate('timeSlotId');
+
+  const orphanedIds = assignments
+    .filter(a => !a.subjectId || !a.roomId || !a.timeSlotId)
+    .map(a => a._id);
+
+  if (orphanedIds.length > 0) {
+    await ClassAssignment.deleteMany({ _id: { $in: orphanedIds } });
+  }
+
+  return assignments.filter(a => a.subjectId && a.roomId && a.timeSlotId);
+};
+
 // ── ADD ──────────────────────────────────────────────────────────────────────
 
 const addDepartment = async (req, res) => {
@@ -101,22 +121,28 @@ const lockDay = async (req, res) => {
 
 const getFullTimetable = async (req, res) => {
   try {
-    const assignments = await ClassAssignment.find()
-      .populate('subjectId').populate('roomId').populate('timeSlotId');
-
-    // Find orphaned assignments (where room, subject or timeslot was deleted)
-    const orphanedIds = assignments
-      .filter(a => !a.subjectId || !a.roomId || !a.timeSlotId)
-      .map(a => a._id);
-
-    // Auto-clean orphaned records from DB
-    if (orphanedIds.length > 0) {
-      await ClassAssignment.deleteMany({ _id: { $in: orphanedIds } });
-    }
-
-    // Return only valid assignments
-    const valid = assignments.filter(a => a.subjectId && a.roomId && a.timeSlotId);
+    const valid = await getValidAssignments();
     res.json(valid);
+  } catch (err) { res.status(500).json({ message: err.message }); }
+};
+
+const getPublicDepartments = async (req, res) => {
+  try {
+    const departments = await Department.find().sort({ name: 1 });
+    res.json(departments);
+  } catch (err) { res.status(500).json({ message: err.message }); }
+};
+
+const getPublicTimetable = async (req, res) => {
+  try {
+    const { departmentId } = req.query;
+    const valid = await getValidAssignments();
+
+    const filtered = departmentId
+      ? valid.filter(a => a.subjectId?.departmentId?._id?.toString() === departmentId)
+      : valid;
+
+    res.json(filtered);
   } catch (err) { res.status(500).json({ message: err.message }); }
 };
 
@@ -213,5 +239,6 @@ module.exports = {
   createInstructor, getInstructors, deleteInstructor,
   getDepartments, getRooms, getTimeSlots,
   lockDay, getFullTimetable, getRoomAllocationTimetable,
+  getPublicDepartments, getPublicTimetable,
   deleteAssignment,
 };

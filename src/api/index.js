@@ -1,8 +1,15 @@
 import axios from 'axios';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+
 const API = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000/api',
+  baseURL: API_BASE_URL,
   withCredentials: false  // No cookies needed anymore — we use JWT in headers
+});
+
+const PublicAPI = axios.create({
+  baseURL: API_BASE_URL,
+  withCredentials: false
 });
 
 // Attach JWT token to every request automatically
@@ -29,6 +36,9 @@ export const logout = () => {
 };
 
 export const getMe = () => API.get('/auth/me');
+export const getPublicDepartments = () => PublicAPI.get('/public/departments');
+export const getPublicTimetable = (departmentId) =>
+  PublicAPI.get(`/public/timetable${departmentId ? `?departmentId=${departmentId}` : ''}`);
 
 // Admin — Departments
 export const addDepartment = (data) => API.post('/admin/departments', data);
